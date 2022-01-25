@@ -1,0 +1,133 @@
+        MOV SP, #0x10000         ;INICIJAIZACIJA STOGA
+
+        MOV R5, #0x500           ;REGISTAR SA ADRESOM PRVOG BLOKA
+        MOV R6, #0x1000          ;REGISTAR SA ADRESOM DRUGOG BLOKA
+
+        ;R7, R8, R9 REGISTRE CU KORISTIT U POTPROGRAMIMA
+
+PETLJA  LDR R10,[R5], #4        ;REGISTAR ZA RAČUNSKU OPERACIJU
+        LDR R1, [R5], #4        ;REGISTAR ZA PRVI OPERAND
+        LDR R2, [R5], #4        ;REGISTAR ZA PRVI OPERAND
+
+        
+        LDR R0, CONST
+        CMP R10, R0
+        BEQ ZAVRSI
+   
+        STMFD SP!, {R1,R2}        
+
+        CMP R10, #0
+        BLEQ ZBRA
+        
+        CMP R10, #1
+        BLEQ ODUZ
+
+        CMP R10, #2
+        BLEQ MNOZ
+
+        CMP R10, #3
+        BLEQ DIJE
+        
+        LDMFD SP!, {R0}              
+
+        STR R0, [R6], #4        ;U R0 SE NALAZI REZULTAT OPERACIJE
+
+        B PETLJA
+        
+
+ZAVRSI  MVN R0, #0;              ;DOBIJEM -1, ODNOSNO FFFF FFFF
+        STR R0, [R6]            ;KRAJ DRUGOG BLOKA
+             
+
+        SWI 0x123456
+ 
+
+ZBRA    LDMFD SP!, {R8, R9}
+        
+        ADD R7, R8, R9
+
+        STMFD SP!, {R7}  
+        MOV PC, LR
+
+ODUZ    LDMFD SP!, {R8, R9}
+        
+        SUB R7, R8, R9
+
+        STMFD SP!, {R7}  
+        MOV PC, LR
+   
+MNOZ    LDMFD SP!, {R8, R9}
+        
+        MUL R7, R8, R9
+
+        STMFD SP!, {R7}  
+        MOV PC, LR
+
+
+        ;R7 - REZULTAT
+        ;R8 - DJELJENIK
+        ;R9 - DJELITELJ
+        ;CIJELOBROJNO DIJELJENJE, NEMA OSTATKA
+DIJE    LDMFD SP!, {R8, R9}
+        STMFD SP!, {R5,LR}
+
+        MOV R5, #0      ;GLEDAT CE DA LI TREBA DODATI MINUS NA REZULTAT DIJELJENJA ILI NE              
+        
+        CMP R8, #0
+        MOVEQ R7, #0
+        BEQ KRAJ
+        MOVLT R7,R8         ;NE MOGU DODAT UVJET DA SPREMI NA STOG AKO JE MANJE OD 0, BILA BI DVA UVJETA
+        BLLT INVERT         ;ODLUCIO SAM SE ZA PRIJENOS REGISTROM JER JE R7 REGISTAR SLOBODAN
+        MOVLT R8,R7      
+        ADDLT R5, R5 , #1   ;ZASTAVICA DA JE BROJ NEGATIVAN    
+
+        CMP R9, #0
+        MOVEQ R7, #0
+        BEQ KRAJ
+        MOVLT R7,R9 
+        BLLT INVERT
+        MOVLT R9,R7
+        ADDLT R5, R5 , #1   ;ZASTAVICA DA JE BROJ NEGATIVAN   
+        
+        MOV R7, #0x0    ;REGISTAR ZA REZULTAT DIJELJENJA
+LOOP    CMP R8, R9      ;DJELITELJ JE VECI OD DJELJENIKA, NE MOZE
+        BLO KRAJ
+        
+        SUB R8, R8, R9
+        ADD R7, R7, #0x1
+        
+        B LOOP
+
+KRAJ    AND R5,R5, #0b1
+        CMP R5, #1
+        BLEQ INVERT
+        
+
+        LDMFD SP!, {R5,LR}
+        STMFD SP!, {R7}  
+        MOV PC, LR
+
+       
+INVERT  
+        MVN R0, #0
+        EOR R7, R7, R0
+        ADD R7, R7, #1
+        MOV PC, LR
+
+
+
+CONST   DW 0x80808080
+
+;        ORG 0x500
+;        DW 0x3, 0xFFFFFEFF, 0x10
+;        DW 0x1, 0x1F4, 0xFFFFFD44
+;        DW 0x2, 0xFFFFFFFE, 0xA
+;        DW 0x3, 0xFFFFF000, 0xFFFFFFC0
+;        DW 0x3, 0x0, 0x10
+;        DW 0x3, 0x5, 0x0
+;        DW 0x0, 0xfffffff9, 0xfffffffe
+;        DW 0x80808080
+
+;        ORG 0x1000
+;        DW 0, 0, 0, 0, 0, 0, 0, 0
+   

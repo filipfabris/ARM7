@@ -1,0 +1,79 @@
+        ORG 0x0
+        B MAIN
+
+        ORG 0x18
+IRQ     STMFD SP!, {LR, R0, R1,R2}
+        LDR R0, RTC
+        
+        MOV R1, #0
+        STR R1, [R0, #0x0C]
+        STR R1, [R0, #0x08]
+
+        LDR R0, GPIO
+        LDR R1, [R0, #0]
+        AND R1, R1, #0b11100000
+
+        CMP R1, #0b00100000
+        MOVEQ R2, #0b01100000
+        STREQ R2, [R0, #0]
+
+        CMP R1, #0b01100000
+        MOVEQ R2, #0b10000000
+        STREQ R2, [R0, #0]
+
+        CMP R1, #0b10000000
+        MOVEQ R2, #0b01000000
+        STREQ R2, [R0, #0]
+
+        CMP R1, #0b01000000
+        MOVEQ R2, #0b00100000
+        STREQ R2, [R0, #0]
+
+        LDMFD SP!, {LR, R0, R1,R2}
+        SUBS PC, LR, #4
+
+
+
+MAIN    MSR CPSR, #0b11010010   ;STOG ZA IRQ
+        MOV R13, #0x10000
+        
+        MSR CPSR, #0b11010011   ;STOG ZA SUPERVISOR
+        MOV R13, #0xFC00
+
+
+        MRS R0, CPSR    ;OMOGUCAVANJE PREKIDA
+        BIC R0, R0, #0b11000000
+        MSR CPSR, R0
+
+        LDR R0, GPIO    ;ADRESA GPIOA U R0
+        MOV R1, #0b11100000       
+        STR R1, [R0, #8]  ;INICIJALIZACIJA GPIO-A
+        MOV R1, #0b00100000 ;NA POCETKU CRVENO NA SEMAFORU
+        STR R1, [R0, #0]   
+        
+        BL RTC_I        ;INICIJALIZACIJA RTC-A
+        MOV R1, #0b00100000
+        STR R1, [R0, #0]        
+
+RADI   B RADI   ;POSAO            
+        
+        SWI 0x123456
+        
+
+RTC_I   STMFD SP!, {R0, R1}
+        LDR R0, RTC
+        
+        MOV R1, #0
+        STR R1, [R0, #0x0C]
+
+        MOV R1, #5      ;5 SEKUNDI
+        STR R1, [R0, #0x04]
+        
+        MOV R1, #1
+        STR R1, [R0, #0x10]
+
+        LDMFD SP!, {R0, R1}
+        MOV PC, LR
+
+RTC     DW 0xFFFF0E00
+GPIO    DW 0xFFFF0B00

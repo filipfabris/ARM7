@@ -1,0 +1,111 @@
+        ORG 0x0
+        B MAIN
+        
+        ORG 0x18
+        B IRQ
+
+        ORG 0x1C
+        STMFD SP!, {LR, R0, R1}
+        LDR R1,RTC
+        
+        MOV R0, #0
+        STR R0, [R1, #12]       ;BROJILO
+        STR R0, [R1, #8];       RTC STAT/EOI
+        STR R0, [R1, #4]        ;MR USPOREDNI REGISTAR
+
+        MOV R7, #10        ;ZA ZASTAVICE KOJE KORISTI BEQ POSAO
+       
+        LDMFD SP!, {LR, R0, R1}
+        SUBS PC, LR, #4
+
+
+MAIN    MSR CPSR, #0b11010010   ;STOG ZA IRQ
+        MOV R13, #0x10000
+
+        MSR CPSR, #0b11010001   ;STOG ZA FIQ
+        MOV R13, #0xFC00
+        
+        MSR CPSR, #0b11010011   ;STOG ZA SUPERVISOR
+        MOV R13, #0xFC00
+
+        MRS R0, CPSR    ;OMOGUCAVANJE PREKIDA
+        BIC R0, R0, #0b11000000
+        MSR CPSR, R0
+
+        MOV R5, #5      ;BROJAC BLOKOVA
+        MOV R4, #0      ;UVIJEK U 0
+       
+PETLJA  BL DMAC_I
+        SUB R5, R5, #1  ;SMANJUJEM BROJ KOLIKO PUTA JOS TREBAM PREPISAT BLOK NA SOURCE NA DEST REKO KRAĐE CIKLUSA
+        MOV R7, #0      ;ZA ZASTAVICE KOJE KORISTI BEQ POSAO
+
+POSAO   CMP R4, R7      ;POSTAVLJANJE ZASTAVICA U FIQ OD RTC - R7
+        BEQ POSAO      ;"KORISTAN" POSAO
+
+        CMP R5, R4      ;POSTAVLJANJE ZASAVICA USPOREDBA R4 I R5, R5 BROJ BLOKOVA, RADI DOK JE R5 VECI OD NULE
+        BHI PETLJA
+        
+
+        SWI 0x123456
+
+DMAC_I  STMFD SP!, {R0, R1}
+        LDR R1, DMAC
+        
+        MOV R0, #0x500
+        STR R0, [R1, #16];SOURCE
+        
+        MOV R0, #0x700
+        STR R0, [R1, #20];DEST
+
+        MOV R0, #0x000A ;BLOK SIZE
+        STR R0, [R1, #0X18]
+        
+        MOV R0, #0b10101100 ;CONFIG
+        STR R0, [R1,#0x1C]
+        
+        MOV R0, #1
+        STR R0, [R1, #0]     
+        
+        LDMFD SP!, {R0, R1}
+        MOV PC, LR     
+
+
+RTC_I   STMFD SP!, {R0, R1}
+        LDR R0, RTC
+        
+        MOV R1, #0
+        STR R1, [R0, #0x0C]
+
+        MOV R1, #3
+        STR R1, [R0, #0x04]
+        
+        MOV R1, #1
+        STR R1, [R0, #0x10]
+
+        LDMFD SP!, {R0, R1}
+        MOV PC, LR       
+
+
+IRQ     STMFD SP!, {LR, R0, R1,R2} ;ZA DMAC
+        LDR R1, DMAC
+        LDR R2, [R1, #20]       ;DESTINACIJA ZADNJE MEMORIJSKE LOKACIJE
+        LDR R0, END             ;ZADNJI PODATAK ZA ZAKLJUCIVANJE BLOKA U LABELI END
+        STR R0, [R2]
+        
+        MOV R0, #0
+        STR R0, [R1, #0x4]      ;DMAC STATUS REGISTAR PRIHVACEN
+        BL RTC_I
+        
+        
+        LDMFD SP!, {LR, R0, R1,R2}
+        SUBS PC, LR, #4
+
+DMAC    DW 0x00FF0000
+RTC     DW 0xFFFF0E00
+END     DW 0x80808080
+
+        ORG 0x500
+;ULAZ    DW 1,2,3,4,5,6,7,8,9, 10, 11
+
+        ORG 0x700
+;IZLAZ   DW 0,0,0,0,0,0,0,0,0,0,0,0,0
